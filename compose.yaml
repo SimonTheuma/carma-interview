@@ -1,0 +1,289 @@
+name: media-signal
+
+# Production hardening: pin image digests (repo@sha256:…) once verified in your registry.
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "3" }
+
+x-app: &app
+  image: media-signal-app:local
+  build: { context: ., target: runner }
+  init: true
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  logging: *logging
+  env_file:
+    - path: .env
+      required: false
+
+services:
+  secrets-init:
+    image: alpine:3.20.3
+    volumes:
+      - secrets:/secrets
+      - ./ops/init-secrets.sh:/init.sh:ro
+    command: ["sh", "/init.sh"]
+    restart: "no"
+    mem_limit: 64m
+
+  db:
+    image: postgres:16.6-bookworm
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
+    environment:
+      POSTGRES_USER: mss_admin
+      POSTGRES_DB: ${DB_NAME:-mss}
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - type: volume
+        source: secrets
+        target: /run/secrets
+        read_only: true
+        volume:
+          subpath: db
+      - ./db/postgres/${DB_TUNING:-small}.conf:/etc/postgresql/postgresql.conf:ro
+    shm_size: 256mb
+    mem_limit: 1g
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U mss_admin -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+    networks: [data]
+    logging: *logging
+
+  migrate:
+    <<: *app
+    command: ["node", "dist/cli/migrate.js"]
+    environment:
+      ROLE: migrate
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-mss}
+      DB_PASSWORD_FILE: /run/secrets/postgres_password
+      APP_INGEST_PASSWORD_FILE: /run/secrets/app_ingest_password
+      APP_WORKER_PASSWORD_FILE: /run/secrets/app_worker_password
+      APP_READ_PASSWORD_FILE: /run/secrets/app_read_password
+      ENRICHMENT_ENABLED: ${ENRICHMENT_ENABLED:-true}
+      TRANSLATION_ENABLED: ${TRANSLATION_ENABLED:-true}
+      SEED_SAMPLE: ${SEED_SAMPLE:-true}
+      PROMPT_VERSION: ${PROMPT_VERSION:-v1}
+      MIGRATIONS_DIR: /app/db/migrations
+    volumes:
+      - type: volume
+        source: secrets
+        target: /run/secrets
+        read_only: true
+        volume:
+          subpath: migrate
+    depends_on:
+      db:
+        condition: service_healthy
+      secrets-init:
+        condition: service_completed_successfully
+    restart: "no"
+    networks: [data]
+    mem_limit: 256m
+
+  # Optional re-seed / extra loads (sample is also loaded by migrate when SEED_SAMPLE=true)
+  seed:
+    <<: *app
+    profiles: [seed]
+    command: ["node", "dist/cli/load.js", "--file", "/app/data/sample_articles.json", "--kind", "backfill"]
+    environment:
+      ROLE: seed
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-mss}
+      DB_PASSWORD_FILE: /run/secrets/app_ingest_password
+      SEED_SAMPLE: ${SEED_SAMPLE:-true}
+      PROMPT_VERSION: ${PROMPT_VERSION:-v1}
+    volumes:
+      - type: volume
+        source: secrets
+        target: /run/secrets
+        read_only: true
+        volume:
+          subpath: seed
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+    networks: [data]
+    mem_limit: 256m
+
+  web:
+    <<: *app
+    command: ["node", "server.js"]
+    environment:
+      ROLE: web
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-mss}
+      DB_PASSWORD_FILE: /run/secrets/app_read_password
+      CURSOR_SECRET_FILE: /run/secrets/cursor_secret
+      INGEST_DB_PASSWORD_FILE: /run/secrets/app_ingest_password
+      UPLOAD_ENABLED: ${UPLOAD_ENABLED:-true}
+      UPLOAD_MAX_BYTES: ${UPLOAD_MAX_BYTES:-5242880}
+      UPLOAD_MAX_ITEMS: ${UPLOAD_MAX_ITEMS:-1000}
+      INGEST_STATEMENT_TIMEOUT_MS: ${INGEST_STATEMENT_TIMEOUT_MS:-10000}
+      UPLOAD_DEADLINE_MS: ${UPLOAD_DEADLINE_MS:-60000}
+      HOSTNAME: 0.0.0.0
+      PORT: "3000"
+    ports:
+      - "${WEB_BIND:-127.0.0.1}:${WEB_PORT:-3000}:3000"
+    networks: [data, edge]
+    tmpfs:
+      - /tmp:size=64m
+      - /app/.next/cache
+    volumes:
+      - type: volume
+        source: secrets
+        target: /run/secrets
+        read_only: true
+        volume:
+          subpath: web
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    restart: on-failure:5
+    mem_limit: 512m
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/api/readyz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+
+  worker:
+    <<: *app
+    command: ["node", "dist/worker.js"]
+    environment:
+      ROLE: worker
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${DB_NAME:-mss}
+      DB_PASSWORD_FILE: /run/secrets/app_worker_password
+      ENRICHMENT_MODE: ${ENRICHMENT_MODE:-auto}
+      ENRICHMENT_ENABLED: ${ENRICHMENT_ENABLED:-true}
+      JEV_API_KEY: ${JEV_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      JEV_PRICE_IN_PER_MTOK: ${JEV_PRICE_IN_PER_MTOK:-}
+      JEV_PRICE_OUT_PER_MTOK: ${JEV_PRICE_OUT_PER_MTOK:-}
+      OPENAI_PRICE_IN_PER_MTOK: ${OPENAI_PRICE_IN_PER_MTOK:-}
+      OPENAI_PRICE_OUT_PER_MTOK: ${OPENAI_PRICE_OUT_PER_MTOK:-}
+      BUDGET_JEV_DAILY: ${BUDGET_JEV_DAILY:-5}
+      BUDGET_OPENAI_DAILY: ${BUDGET_OPENAI_DAILY:-10}
+      BUDGET_TRANSLATE_DAILY: ${BUDGET_TRANSLATE_DAILY:-3}
+      WORKER_CONCURRENCY_TRANSLATE: ${WORKER_CONCURRENCY_TRANSLATE:-2}
+      RPM_TRANSLATE: ${RPM_TRANSLATE:-60}
+      TRANSLATION_ENABLED: ${TRANSLATION_ENABLED:-true}
+      TRANSLATE_MODEL: ${TRANSLATE_MODEL:-}
+      TRANSLATE_CHUNK_TOKENS: ${TRANSLATE_CHUNK_TOKENS:-1500}
+      TRANSLATE_MAX_CHUNKS: ${TRANSLATE_MAX_CHUNKS:-20}
+      TRANSLATE_RATIO_CJK: ${TRANSLATE_RATIO_CJK:-0.15,Infinity}
+      TRANSLATE_RATIO_OTHER: ${TRANSLATE_RATIO_OTHER:-0.3,3.0}
+      TRANSLATE_CACHE_DAYS: ${TRANSLATE_CACHE_DAYS:-7}
+      TRANSLATE_SUPERSEDED_DAYS: ${TRANSLATE_SUPERSEDED_DAYS:-30}
+      TRANSLATE_PROMPT_VERSION: ${TRANSLATE_PROMPT_VERSION:-t1}
+      PROMPT_VERSION: ${PROMPT_VERSION:-v1}
+      MOCK_LATENCY_MS: ${MOCK_LATENCY_MS:-50}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    networks: [data, edge]
+    stop_grace_period: 40s
+    tmpfs: [/tmp]
+    volumes:
+      - type: volume
+        source: secrets
+        target: /run/secrets
+        read_only: true
+        volume:
+          subpath: worker
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      db:
+        condition: service_healthy
+    restart: on-failure:5
+    mem_limit: 256m
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:9101/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 15s
+
+  prometheus:
+    profiles: [observability]
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./ops/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./ops/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks: [edge, data]
+    mem_limit: 256m
+    logging: *logging
+
+  grafana:
+    profiles: [observability]
+    # Pin digests before production use (image:tag@sha256:…).
+    image: grafana/grafana:11.3.0
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        "export GF_SECURITY_ADMIN_PASSWORD=\"$$(cat /run/secrets/grafana_admin_password)\" && exec /run.sh",
+      ]
+    environment:
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./ops/grafana/provisioning:/etc/grafana/provisioning:ro
+      - type: volume
+        source: secrets
+        target: /run/secrets
+        read_only: true
+        volume:
+          subpath: grafana
+    ports:
+      - "127.0.0.1:3001:3000"
+    networks: [edge]
+    mem_limit: 256m
+    depends_on:
+      secrets-init:
+        condition: service_completed_successfully
+      prometheus:
+        condition: service_started
+    logging: *logging
+
+volumes:
+  pgdata: {}
+  secrets: {}
+
+networks:
+  edge: {}
+  data:
+    internal: true

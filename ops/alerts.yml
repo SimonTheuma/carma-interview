@@ -1,0 +1,148 @@
+groups:
+  - name: media-signal
+    rules:
+      - alert: WorkerHeartbeatStale
+        expr: time() - mss_worker_heartbeat_unixtime > 120
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Worker heartbeat is stale
+      - alert: EnrichmentBacklogHigh
+        expr: mss_jobs_queued > 100
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Enrichment job backlog is high
+
+  - name: media-signal-uploads
+    rules:
+      - alert: UploadReconcileMismatch
+        expr: increase(mss_upload_reconcile_mismatch_total[1h]) > 0
+        for: 0m
+        labels:
+          severity: page
+        annotations:
+          summary: Upload reconcile mismatch detected (U1)
+      - alert: UploadErrorRateHigh
+        expr: |
+          (
+            sum(rate(mss_upload_requests_total{outcome="error"}[30m]))
+            /
+            clamp_min(sum(rate(mss_upload_requests_total[30m])), 1e-9)
+          ) > 0.05
+        for: 30m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Upload 5xx ratio above 5% (U2)
+      - alert: UploadLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(mss_upload_duration_seconds_bucket[1h])) by (le)) > 30
+        for: 1h
+        labels:
+          severity: warn
+        annotations:
+          summary: Upload p95 latency above 30s (U3)
+      - alert: SupersededJobStuck
+        expr: mss_job_oldest_age_seconds{state="running"} > 300
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Running enrichment job older than claim timeout plus margin (U4)
+      - alert: UploadAuthFailures
+        expr: increase(mss_upload_rejected_total{reason="unauthorized"}[10m]) > 20
+        for: 0m
+        labels:
+          severity: warn
+        annotations:
+          summary: Spike in upload auth failures (U5)
+
+  - name: media-signal-translation
+    rules:
+      - alert: TranslationBacklogHigh
+        expr: mss_jobs_queued{part="translation"} > 50
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: Translation job backlog is high (T1)
+      - alert: TranslationOldestJobStale
+        expr: mss_job_oldest_age_seconds{part="translation"} > 3600
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: Oldest translation job is older than 1h (T2)
+      - alert: TranslationDeadRateHigh
+        expr: increase(mss_translation_dead_total[1h]) > 20
+        for: 0m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Many translation jobs dead in the last hour (T3)
+      - alert: TranslationBreakerOpen
+        expr: mss_breaker_state{provider="openai-translate"} == 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: openai-translate breaker is open (T4)
+      - alert: TranslationBudgetDeferral
+        expr: increase(mss_budget_deferred_total{provider="openai-translate"}[6h]) > 10
+        for: 0m
+        labels:
+          severity: info
+        annotations:
+          summary: Translation jobs deferred on budget (T5)
+      - alert: TranslationLagHigh
+        expr: histogram_quantile(0.95, sum(rate(mss_translation_lag_seconds_bucket[1h])) by (le)) > 3600
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: Translation lag p95 above 1h (T6)
+      - alert: TranslationCoverageLow
+        expr: mss_search_foreign_untranslated > 1000
+        for: 1h
+        labels:
+          severity: info
+        annotations:
+          summary: Large untranslated foreign corpus (T7)
+      - alert: TranslationStaleCurrent
+        expr: mss_translation_stale_current > 0
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Current translation row bound to wrong article version (T8)
+
+  - name: media-signal-search
+    rules:
+      - alert: SearchWildcardLatencyHigh
+        expr: histogram_quantile(0.95, sum(rate(mss_search_duration_seconds_bucket{kind="wildcard"}[15m])) by (le)) > 2
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: wildcard search p95 over 2s (E1)
+      - alert: SearchTimeoutRateHigh
+        expr: |
+          (
+            rate(mss_search_timeouts_total[1d])
+            /
+            clamp_min(sum(rate(mss_search_duration_seconds_count[1d])), 1e-9)
+          ) > 0.01
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: Search timeout rate above 1% (E2)
+      - alert: SearchIndexInvalid
+        expr: mss_search_index_valid == 0
+        for: 5m
+        labels:
+          severity: page
+        annotations:
+          summary: A search index is invalid (E3)

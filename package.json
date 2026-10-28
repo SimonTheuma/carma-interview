@@ -1,0 +1,44 @@
+{
+  "name": "media-signal-service",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build && npm run build:services",
+    "build:services": "esbuild src/cli/migrate.ts src/cli/load.ts src/worker/index.ts --bundle --platform=node --target=node22 --format=cjs --outbase=src --outdir=dist --packages=external && node -e \"const fs=require('fs');fs.copyFileSync('dist/worker/index.js','dist/worker.js');\"",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "migrate": "tsx src/cli/migrate.ts",
+    "load": "tsx src/cli/load.ts"
+  },
+  "dependencies": {
+    "htmlparser2": "^10.0.0",
+    "next": "16.4.3",
+    "pg": "^8.16.0",
+    "pino": "^9.7.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0",
+    "@tailwindcss/turbopack": "^4",
+    "@testing-library/react": "^16.3.0",
+    "@types/node": "^20",
+    "@types/pg": "^8.15.0",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "esbuild": "^0.25.0",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.3",
+    "jsdom": "^26.1.0",
+    "tailwindcss": "^4",
+    "tsx": "^4.19.0",
+    "typescript": "^5",
+    "vitest": "^3.1.0"
+  }
+}
