@@ -1,0 +1,126 @@
+---
+name: carma-dba
+description: PostgreSQL database administration and design plan for Carma pipeline features, built from the carma-architect and carma-searchability outputs. Proposes the execution plan for storage, inserts and indexes, with emphasis on high-performance writes at ~800 articles/sec, indexing strategy, search buckets and partitioning, PostgreSQL extensions (queues, vectors, partition automation, CJK search) to raise reliability and searchability, confidence and lineage storage, retention, capacity, tuning parameters and online migrations. Writes numbered specs to .specs/data/dba/. Use whenever a Carma feature touches schema, tables, indexes, partitions, bulk inserts, write throughput, database capacity, retention or migrations, and whenever the user mentions Postgres, DBA, indexing, partitioning, write performance or storage design, even if the skill is not named.
+---
+ 
+# carma-dba
+ 
+With no event platform, PostgreSQL carries Carma's ingestion, state and search. The database design therefore decides whether the pipeline reaches 800 articles a second sustained, whether a new article becomes searchable inside the 15-minute window, and whether search load can coexist with write load. This skill produces the execution plan for the database side, with the reasoning and the measurements that would prove or disprove it.
+ 
+Every suggestion here is a hypothesis to verify against the real PostgreSQL version, hardware and workload. State what must be measured before a setting is trusted, and never present a tuning value as settled.
+ 
+Read `references/carma-context.md` first for the principles, constraints and spec conventions. Read `references/postgres-extensions.md` before planning indexes, queues or vector search.
+ 
+## Inputs
+ 
+Read the latest non-superseded spec for the same feature from `.specs/architect/` and `.specs/search/` (and ADRs in `.specs/architect/adrs/`). From the architect spec take the data flow, processing states, hot paths (HP-n) and failure points (FP-n). From the searchability spec take the searchable document, index strategy, buckets and standing-query design. Read `.specs/data/sanitization/` if present for storage rules (quarantine, raw versus sanitised). If an input is missing, say so and either run its analysis inline or ask.
+ 
+Then inspect the codebase for the current database: migrations, schema, existing indexes and partitions, ORM versus raw SQL, connection pooling, configuration, PostgreSQL version, and the extensions enabled or available (`CREATE EXTENSION` in migrations, images, infrastructure code, `pg_available_extensions` if reachable). Record paths as evidence.
+ 
+## Workflow
+ 
+### 1. Establish the write budget
+ 
+Convert the target into numbers before choosing a design: 800 rows a second sustained is the floor; ask what peak and what catch-up rate after an outage are needed, because recovering a backlog means writing faster than the arrival rate. Estimate row size (headline, body, metadata) and derive bytes per second into the heap, indexes and WAL. Carry the context file's storage estimate forward and replace it with a measured one as soon as real data exists. State the assumptions.
+ 
+### 2. Schema and data model
+ 
+Design for append-heavy ingestion and for traceability.
+ 
+- **Articles.** The article with its text content (headline and body, as text) as the system of record (P8). Exact replication of received HTML is not a goal, so raw markup is not retained by default, which also keeps rows much smaller. Alongside the text: `published_at` in UTC, a captured-at timestamp (so capture lag is computable), `language` as supplied, and a hash of the received payload for dedupe and integrity checks. Decide on the key: `id` may only be unique per source, so confirm and consider a composite or surrogate key. Prefer ordered, compact keys on the hot write path. The landing structure accepts nulls and unexpected values exactly as received: a strict `NOT NULL` or type constraint here would reject and lose an article (P3). Validation happens into stricter structures downstream, each with an explicit state and reason, as the data-sanity spec defines. Review every query and index expression over nullable columns, since NULL semantics in SQL silently drop rows.
+- **Append, do not update.** Updating wide rows rewrites them, bloats the table and generates WAL. Enrichment results go into separate append-only tables keyed by article, so ingestion stays cheap and enrichment never contends with it.
+- **Derived values and confidence (P6, P7, P8).** One structure for every derived field: article reference, field name, value, normalised confidence 0 to 100, raw score, scale min and max, origin type, method and version, produced-at, and the source references used. Decide between a narrow generic table and per-field tables on the basis of query patterns; justify it.
+- **Processing state.** A per-article, per-stage state record that doubles as the work queue and the completeness ledger: stage, status, attempts, claimed-by and claim time, outcome and reason code. This is what lets operators prove every article is accounted for (P2, P3) and lets workers resume after a crash. If the design uses a queue extension, the ledger still stays: the queue forgets finished work, the ledger remembers it, and reconciliation depends on that memory.
+- **Lineage and decisions.** Record dedupe links, filter decisions and transformations so removed or merged content stays recoverable (P4, P8).
+- **Quarantine.** A place for items held back for specific consumers, from the data-sanity spec, that keeps them searchable and counted.
+- **JSONB where necessary.** JSONB is permitted wherever flexibility or native querying justifies it. Typical fits are the article payload as landed (text fields plus any extra source fields), source-specific metadata, and the method detail behind a confidence value (P7). Every use is a recorded decision in the spec: what is stored, what is queried from it and how often, and why a typed column does not do. Rules:
+    - Typed columns for anything partitioned, range-indexed, filtered often, sorted, joined, constrained, aggregated for telemetry, or used as the source of a text-search vector. JSONB duplicates are fine; JSONB as the only home of these is not.
+    - Written once, not updated in place. Changing one key rewrites the whole value (WAL, bloat, TOAST churn), so changes are appended as new rows.
+    - Keep documents small. Reading one key detoasts the whole value; do not bury the large body inside a document that hot queries read.
+    - Index only for queries the spec names: expression indexes on specific keys, or a `jsonb_path_ops` GIN where containment queries are required. A GIN index on the raw landing table by default is a write-path cost, so it appears in the index inventory with its write cost like any other index. Consider extended statistics or promoting a key to a real column when the planner's estimates for it are poor.
+    - Fidelity. JSONB normalises the document (whitespace, key order, duplicate keys). That is acceptable here, because the text content is what matters and exact replication of the received payload or its HTML is not a goal. Hash the received payload before storing it, for integrity and dedupe. If a later requirement needs the original bytes or markup, keep them separately (a cold, compressed column or table, off the hot path), and say in the spec that the JSONB copy is normalised.
+    - Populate typed columns safely. A generated column that casts a value out of JSONB fails the insert on a malformed value and loses the article (P3). On the landing table extract as text only, and do casts in the validation stage, where a failure is recorded with a reason and the item continues.
+    - Absent keys, JSON null and wrong types behave differently from SQL NULL. Follow the null matrix in the data-sanity spec when querying JSONB.
+Show DDL sketches in the spec as illustrations of the design, clearly labelled as such, not as final migrations.
+ 
+### 3. Extension plan
+ 
+Extensions can lift reliability and searchability considerably, so evaluate them deliberately instead of by habit or by avoidance. Use `references/postgres-extensions.md`.
+ 
+First verify, do not assume: PostgreSQL version, what is installed, what the hosting environment permits, licence terms, and whether the extension is maintained and compatible with the version in use. If the architect or searchability spec leans on an extension, confirm it is actually available before building on it.
+ 
+Then produce an inventory with one row per extension considered:
+ 
+| Extension | Purpose | Principle served | Write-path or storage cost | Operational burden | Availability check | Core fallback |
+| --- | --- | --- | --- | --- | --- | --- |
+ 
+Points to work through:
+ 
+- **Queues (P2).** If a queue extension or core `SKIP LOCKED` is used, plan for the bloat and vacuum pressure of delete-heavy churn at 800 items a second, keep payloads to ids, and keep the processing-state ledger.
+- **Vectors (P3, P5, P10).** Quantify embedding compute and vector storage per day (the extensions reference shows the arithmetic), decide which partitions are indexed and which are scanned, and store the embedding model and version for lineage. Treat vector search as a supplement to lexical standing queries.
+- **CJK and text search.** Match the choice to the language analysis plan in the searchability spec; check dictionary and maintenance risk.
+- **Partition and schedule automation.** Decide who creates future partitions and runs sweepers, so a missing partition cannot stall ingestion.
+- **Visibility.** `pg_stat_statements` and friends so the hot queries can be seen.
+Put the adoption choice to the user as packages (core only, core plus operational basics, extended), with the trade-off of each, and keep the core fallback in the design. Each extension's cost goes into the verification plan as an experiment.
+ 
+### 4. Partitioning and retention
+ 
+At tens of millions of rows a day, a single table is unmanageable. Partition by `published_at` (or by captured-at if late arrivals make `published_at` a poor fit; decide and say why), at hourly or daily granularity. Weigh the number of partitions (planner and catalogue cost) against partition size (index build time, vacuum, drop granularity). Consider who creates partitions ahead of time and what happens when an article arrives for a partition that does not exist or is old. Retention then means detaching and dropping whole partitions, not row deletes. Combine with the searchability buckets: partitions are the natural physical form of time buckets, and the newest partitions can be indexed more lightly so new items are searchable sooner (P1).
+ 
+### 5. Indexing
+ 
+Every index taxes every write. Justify each one by the query it serves, and keep the hot-write partitions to the minimum.
+ 
+- Inventory table: index, type, columns, the query or requirement it serves, estimated write cost, when it is built (on the live partition or after it ages), and how it is verified.
+- Candidates by purpose: B-tree for key and exact lookups; BRIN for `published_at` on append-only, time-ordered partitions (tiny and cheap to maintain); GIN for full-text vectors and trigram search (powerful but expensive to maintain; consider its pending-list behaviour and the trade between write latency and query consistency); partial and covering indexes where a narrow slice dominates.
+- For standing-query matching, decide where the matching structures live (in the database, in memory, or both) and how they are refreshed.
+- Index build on a populated partition should be concurrent and scheduled; say when and with what safeguards.
+### 6. High-performance writes
+ 
+Present the techniques with their durability cost, because Carma values completeness and reliability over raw speed (P2, P3).
+ 
+- Batch inserts through bulk loading or multi-row statements instead of row-at-a-time; size batches by measurement. Weigh the extra latency a batch adds against the 15-minute target (it is small, but state it).
+- Idempotent writes (conflict handling on the key) so retries and duplicate deliveries cannot create duplicates, and measure what that costs.
+- Several writers with sensible partition or key affinity to reduce contention; connection pooling and the interaction of pool mode with prepared statements.
+- Durability settings (commit behaviour, WAL, checkpoint spacing). Relaxing synchronous commit raises throughput and risks losing the most recent commits on a crash. This is a decision for the user, not a default: present it with the exact exposure window and how the pipeline could replay from the source to recover.
+- Unlogged tables are fast and lose their contents on a crash; they may suit a replayable staging area, never the system of record. Say which, and prove replay.
+- Storage details: how large text is stored and compressed, fill factor, avoiding updates so heap-only updates matter less.
+- Isolation of search reads from ingestion writes: replicas, or dedicated resources. Say what staleness a replica adds against the freshness target.
+### 7. Operations
+ 
+- Vacuum and analyze for append-only partitions (statistics must exist before the planner can use new partitions well); autovacuum settings per table.
+- Bloat, index size and WAL growth monitoring; replication lag.
+- Backup and point-in-time recovery sized for the write rate; restore time against any recovery target.
+- Online migrations: add columns and indexes without long locks, attach partitions safely, backfill in batches, and a rollback for each step. Flag migrations that would block ingestion.
+- Capacity and growth model: storage per day, per retained period, with the assumptions that would change it.
+### 8. Verification plan
+ 
+Describe how each claim is proven: a load generator that reproduces the article shape at 800/s and at peak, query-plan inspection for the key queries, measurement of commit latency, WAL rate and index maintenance cost, a soak test, and a recovery test after a simulated outage. Include a benchmark for each extension adopted, on the real shape of the load (mixed English, Arabic and Chinese text, 800 a second), because extension performance in a demo does not predict it. For any JSONB use, benchmark the layout alternatives under the same load (all-JSONB, hybrid, fully typed) and compare insert throughput, WAL per second, row and index size, p99 on the real filters, and planner estimates against actual rows. These feed carma-backend-testing. List what is unknown and what the first experiment is.
+ 
+### 9. Decisions to put to the user
+ 
+Raise choices that need a human: durability versus throughput settings, partition granularity, whether replicas are available for search, which extensions are permitted (the package choice from the extension plan), retention period, backup targets. Use the protocol in the context file.
+ 
+## Output
+ 
+Write the spec with these sections:
+ 
+1. **Summary**
+2. **Inputs and current database state** (findings with paths; version and extensions known or unknown)
+3. **Write budget and capacity model** (assumptions explicit)
+4. **Schema** (entities, DDL sketches, confidence and lineage structures, processing-state ledger, JSONB usage and its justification)
+5. **Extension plan** (inventory table, availability findings, package options, fallbacks)
+6. **Partitioning and retention**
+7. **Index inventory** (table as above)
+8. **Write path design** (batching, idempotency, concurrency, durability options with exposure)
+9. **Search read path and isolation**
+10. **Operations** (vacuum, monitoring, backup, migrations with rollback)
+11. **Verification plan** (experiments, thresholds, what to measure first)
+12. **Risks and hot paths** (extend the architect registers with `FP-DB` and `HP-DB` entries)
+13. **Handoff** (include what carma-benchmark needs to run against a disposable database: seed and clean-up approach, how to read the ledger and counts for completeness checks; to carma-devops for the database image, extensions, tuning parameters, bootstrap, migrations, roles and backup needs; to carma-backend-testing, carma-telemetry, carma-plan)
+14. **Decisions needed and open questions**
+## Persisting the work (when run inside a codebase)
+ 
+Follow "Spec conventions" in the context file. Number with `python scripts/next_spec_number.py .specs/data/dba`, write `.specs/data/dba/NNNN-<feature-slug>.md` with `spec: carma-dba` front matter and list the architect and searchability specs under `inputs`. Edit in place while `draft`. When the user decides a question that should be binding (for example durability settings), suggest recording it as an ADR through carma-architect.
+ 
+If you are not in a codebase, deliver the output in the conversation and offer to save it.
