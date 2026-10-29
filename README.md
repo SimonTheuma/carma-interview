@@ -2,6 +2,22 @@
 
 Searchable news corpus with boolean queries, async enrichment (sentiment / summary / topics), and honest UI states. Built as the Senior Fullstack home assignment for Carma (track F per ADR-0018).
 
+## Scope decision (read this first)
+
+The brief asks for a small service and says not to gold-plate. I delivered that core, then deliberately went further. The aim was to show a repeatable, spec-driven workflow (skills → specs/ADRs → plan → Cursor → review) that carries a feature from requirement to production-minded delivery. A small artefact was the test bed for that workflow.
+
+| Area | Part of the brief | Workflow showcase (beyond the brief) |
+| --- | --- | --- |
+| Data layer and SQL | Schema, keyset list, month/week aggregate, indexes (`db/migrations/0001_init.sql`, `src/lib/search/run.ts`, `src/app/api/aggregate/route.ts`) | Roles and grants, quarantine tables, retention |
+| Boolean search | Parser, phrases, wildcards, case-sensitive keywords (`src/lib/search/`) | English-first stemming, script-aware CJK/Arabic substring search, coverage signals (plans 0004, 0005; ADR-0030 to 0040) |
+| LLM enrichment | Summary, sentiment, topics, cost analysis, budget guardrail (`src/lib/enrich/`, `src/worker/`) | Async job queue, circuit breakers, second provider (jev), kill switches |
+| UI | Search page, trends view | Status page, per-article trace, upload UI |
+| Responsible coding | SQLi, XSS, prompt-injection, cost controls | Nonce CSP, injection-flagged low trust |
+| Extra features | none | File upload with versioning (plan 0002), article translation (plan 0003) |
+| Operations | none (the brief excludes deployment) | Prometheus/Grafana profile, generated secrets, benchmark harness |
+
+What it cost: roughly 9+ hours against a 7 to 9 hour estimate, 40 ADRs, and some churn where a search decision was later refined or reversed (for example ADR-0033 and ADR-0036). If I were delivering strictly to the brief, I would cut in the order given under **Plan** below and keep the first four rows of the table.
+
 ## How to run
 
 ```bash
